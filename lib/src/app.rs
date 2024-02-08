@@ -30,7 +30,8 @@ impl MatahatanApp {
             app = MatahatanApp::default();
         }
         {
-            let state = shared_state.lock().unwrap();
+            let mut state = shared_state.lock().unwrap();
+            state.ctx = Some(cc.egui_ctx.clone());
             let spec = state.maze_spec.clone();
             app.maze = Some(maze_from_seed_and_kind(spec.seed, spec.kind));
         }

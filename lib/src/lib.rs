@@ -9,7 +9,7 @@ use maze_generator::prims_algorithm::PrimsGenerator;
 use maze_generator::recursive_backtracking::RbGenerator;
 use rand::Rng;
 use rand::RngCore;
-use std::thread;
+use std::{thread, time};
 
 const MAZE_X: i32 = 25;
 const MAZE_Y: i32 = 25;
@@ -54,12 +54,14 @@ impl MazeSpec {
 }
 
 pub struct SimState {
+    ctx: Option<egui::Context>,
     maze_spec: MazeSpec,
 }
 
 impl SimState {
     pub fn new() -> Self {
         SimState {
+            ctx: None,
             maze_spec: MazeSpec::random(),
         }
     }
@@ -77,7 +79,25 @@ pub fn run_simulation(gui: bool) {
     handle.join().unwrap();
 }
 
-fn simulation_loop(shared_state: Arc<Mutex<SimState>>) {}
+fn simulation_loop(shared_state: Arc<Mutex<SimState>>) {
+    let mut close = false;
+    let sleep_time = time::Duration::from_millis(1000);
+    while !close {
+        {
+            let mut state = shared_state.lock().unwrap();
+            state.maze_spec = MazeSpec::random();
+            if let Some(ctx) = &state.ctx {
+                ctx.input(|s| {
+                    if s.viewport().close_requested() {
+                        close = true;
+                    }
+                });
+                ctx.request_repaint();
+            }
+        }
+        thread::sleep(sleep_time); // TODO will be driven by rlua or stdin
+    }
+}
 
 fn show_maze(shared_state: Arc<Mutex<SimState>>) -> eframe::Result<()> {
     env_logger::init();
