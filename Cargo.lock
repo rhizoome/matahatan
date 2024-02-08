@@ -1869,6 +1869,7 @@ dependencies = [
  "env_logger",
  "log",
  "maze_generator",
+ "rand 0.8.5",
  "serde",
 ]
 

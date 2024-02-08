@@ -1,30 +1,40 @@
-use egui::{Color32, Pos2, Rect, Shape, Stroke, Ui, Vec2};
+use super::{maze_from_seed_and_kind, SimState};
+use egui::{Color32, Pos2, Rect, Rounding, Shape, Stroke, Ui, Vec2};
 use maze_generator::prelude::*;
-use maze_generator::recursive_backtracking::RbGenerator;
+use std::sync::{Arc, Mutex};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct MatahatanApp {
     #[serde(skip)]
     maze: Option<Maze>,
+    #[serde(skip)]
+    shared_state: Option<Arc<Mutex<SimState>>>,
 }
 
 impl Default for MatahatanApp {
     fn default() -> Self {
-        Self { maze: None }
+        Self {
+            maze: None,
+            shared_state: None,
+        }
     }
 }
 
 impl MatahatanApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, shared_state: Arc<Mutex<SimState>>) -> Self {
         let mut app;
         if let Some(storage) = cc.storage {
             app = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         } else {
             app = MatahatanApp::default();
         }
-        let mut generator = RbGenerator::new(Some([42; 32]));
-        app.maze = Some(generator.generate(25, 25).unwrap());
+        {
+            let state = shared_state.lock().unwrap();
+            let spec = state.maze_spec.clone();
+            app.maze = Some(maze_from_seed_and_kind(spec.seed, spec.kind));
+        }
+        app.shared_state = Some(shared_state);
         app
     }
 }
@@ -53,6 +63,8 @@ fn draw_maze(ui: &mut Ui, maze: &Maze) {
     let border = Rect::from_two_pos(top_left, bottom_right);
     let border_size = border.size();
     let stroke = Stroke::new(1.0, Color32::WHITE);
+    let shape = Shape::rect_stroke(border, Rounding::ZERO, stroke);
+    ui.painter().add(shape);
     let maze_size_y = maze.size.0;
     let maze_size_x = maze.size.1;
     let square_size = Vec2::new(
