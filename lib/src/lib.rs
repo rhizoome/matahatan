@@ -191,21 +191,27 @@ fn input_step(state: &mut SharedState) {
 
 fn simulation_step(config: SimulationConfig, state: &mut SimulationState) {
     state.frame += 1;
-    state.velocity += state.acceleration * config.acceleration_scaler;
+    if config.human {
+        if state.steering.abs() < 0.2 {
+            state.steering = 0.0;
+        }
+        state.steering = state.steering.powi(7);
+        state.acceleration = state.acceleration.powi(3);
+    }
+    if state.acceleration.signum() < 0.0 {
+        state.velocity += (state.acceleration * config.acceleration_scaler * 5.0);
+    } else {
+        state.velocity += (state.acceleration * config.acceleration_scaler);
+    }
+    state.velocity = state.velocity.max(0.0);
     let vel_scale = (state.velocity.abs() * 10.0).max(1.0);
     state.angle += state.steering * config.steering_scaler / vel_scale;
     state.velocity_v = Vec2::angled(state.angle) * state.velocity;
     state.position += state.velocity_v;
     let pos_new = state.position.clamp(config.zero, config.size);
     if state.position != pos_new {
-        let signum = state.velocity.signum();
-        let dec = state.velocity * 0.1 + 0.01 * signum;
+        let dec = state.velocity * 0.1 + 0.01;
         state.velocity -= dec;
-        if signum > 0.0 {
-            state.velocity = state.velocity.max(0.0);
-        } else {
-            state.velocity = state.velocity.min(0.0);
-        }
     }
     state.position = pos_new;
 }
