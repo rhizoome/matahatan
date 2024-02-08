@@ -1,55 +1,71 @@
-use super::{maze_from_seed_and_kind, SimState};
+use super::{maze_from_seed_and_kind, MazeSpec, SimState};
 use egui::{Color32, Pos2, Rect, Rounding, Shape, Stroke, Ui, Vec2};
 use maze_generator::prelude::*;
 use std::sync::{Arc, Mutex};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
-pub struct MatahatanApp {
-    #[serde(skip)]
-    maze: Option<Maze>,
-    #[serde(skip)]
-    shared_state: Option<Arc<Mutex<SimState>>>,
-}
+pub struct MatahatanAppState {}
 
-impl Default for MatahatanApp {
+impl Default for MatahatanAppState {
     fn default() -> Self {
-        Self {
-            maze: None,
-            shared_state: None,
-        }
+        Self {}
     }
+}
+pub struct MatahatanApp {
+    maze: Maze,
+    maze_spec: MazeSpec,
+    shared_state: Arc<Mutex<SimState>>,
+    app_state: MatahatanAppState,
 }
 
 impl MatahatanApp {
     pub fn new(cc: &eframe::CreationContext<'_>, shared_state: Arc<Mutex<SimState>>) -> Self {
-        let mut app;
-        if let Some(storage) = cc.storage {
-            app = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        } else {
-            app = MatahatanApp::default();
-        }
+        let app;
+        let maze_spec;
         {
             let mut state = shared_state.lock().unwrap();
             state.ctx = Some(cc.egui_ctx.clone());
-            let spec = state.maze_spec.clone();
-            app.maze = Some(maze_from_seed_and_kind(spec.seed, spec.kind));
+            maze_spec = state.maze_spec.clone();
         }
-        app.shared_state = Some(shared_state);
+        let spec = maze_spec.clone();
+        let maze = maze_from_seed_and_kind(spec.seed, spec.kind);
+        let app_state;
+        if let Some(storage) = cc.storage {
+            app_state = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+        } else {
+            app_state = MatahatanAppState::default();
+        }
+        app = MatahatanApp {
+            maze,
+            maze_spec,
+            shared_state,
+            app_state,
+        };
         app
+    }
+
+    fn update_maze(&mut self) {
+        let maze_spec;
+        {
+            let state = self.shared_state.lock().unwrap();
+            maze_spec = state.maze_spec.clone();
+        }
+        if self.maze_spec != maze_spec {
+            self.maze = maze_from_seed_and_kind(maze_spec.seed, maze_spec.kind);
+        }
     }
 }
 
 impl eframe::App for MatahatanApp {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+        eframe::set_value(storage, eframe::APP_KEY, &self.app_state);
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.update_maze();
         egui::CentralPanel::default().show(ctx, |ui| {
-            if let Some(maze) = &self.maze {
-                draw_maze(ui, &maze);
-            }
+            draw_maze(ui, &self.maze);
         });
     }
 }

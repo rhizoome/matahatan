@@ -14,7 +14,7 @@ use std::{thread, time};
 const MAZE_X: i32 = 25;
 const MAZE_Y: i32 = 25;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum MazeKind {
     Ellers,
     Backtracking,
@@ -35,7 +35,7 @@ impl MazeKind {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct MazeSpec {
     seed: [u8; 32],
     kind: MazeKind,
@@ -113,7 +113,7 @@ fn show_maze(shared_state: Arc<Mutex<SimState>>) -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "MatahatanApp",
+        "Matahatan",
         native_options,
         Box::new(|cc| Box::new(app::MatahatanApp::new(cc, shared_state))),
     )
