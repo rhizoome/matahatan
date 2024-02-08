@@ -1,5 +1,5 @@
-use clap::{Arg, Command};
-use matahatan_lib::run_simulation;
+use clap::{Arg, ArgMatches, Command};
+use matahatan_lib::{run_simulation, Config};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -22,12 +22,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Arg::new("fps")
                         .short('f')
                         .long("fps")
+                        .default_value("25")
                         .value_name("FPS")
                         .help("FPS of the simulation not the GUI (0 as fast as possible)")
                         .num_args(1),
                 )
                 .arg(
-                    Arg::new("--no-gui")
+                    Arg::new("no-gui")
                         .short('x')
                         .long("no-gui")
                         .help("Do not run GUI (unattended training) sets FPS to 0")
@@ -39,6 +40,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .long("stdio")
                         .help("Run the simulation in stdio-mode")
                         .num_args(0),
+                )
+                .arg(
+                    Arg::new("stick")
+                        .short('s')
+                        .long("stick")
+                        .help("Run the simulation with stick (gamepad/joystick)")
+                        .num_args(0),
                 ),
         )
         .subcommand(
@@ -48,9 +56,24 @@ fn main() -> Result<(), Box<dyn Error>> {
     let matches = command.clone().get_matches();
 
     match matches.subcommand() {
-        Some(("simulate", _m)) => run_simulation(true),
+        Some(("simulate", m)) => simulate(m),
         Some(("server", _m)) => (),
         _ => command.print_long_help()?,
     }
     Ok(())
+}
+
+fn simulate(m: &ArgMatches) {
+    let gui = !m.get_flag("no-gui");
+    let stick = m.get_flag("stick");
+    let framerate: f32 = match m.get_one::<String>("fps") {
+        Some(fps_str) => fps_str.parse().unwrap_or(25.0_f32),
+        None => 25.0_f32,
+    };
+    let config = Config {
+        gui,
+        stick,
+        framerate,
+    };
+    run_simulation(&config);
 }

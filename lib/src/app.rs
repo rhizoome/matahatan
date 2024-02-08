@@ -1,5 +1,5 @@
-use super::{maze_from_seed_and_kind, MazeSpec, SharedState, SimuationState};
-use egui::{Color32, Pos2, Rect, RichText, Rounding, Shape, Stroke, Ui, Vec2};
+use super::{maze_from_seed_and_kind, MazeSpec, SharedState, SimulationState};
+use egui::{vec2, Color32, Pos2, Rect, RichText, Rounding, Shape, Stroke, Ui, Vec2};
 use maze_generator::prelude::*;
 use std::sync::{Arc, Mutex};
 
@@ -12,6 +12,14 @@ impl Default for MatahatanAppState {
         Self {}
     }
 }
+
+struct MazeInfo {
+    border: Rect,
+    square: Vec2,
+    x: f32,
+    y: f32,
+}
+
 pub struct MatahatanApp {
     maze: Maze,
     maze_spec: MazeSpec,
@@ -71,21 +79,23 @@ impl eframe::App for MatahatanApp {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.update_maze();
+        let simulation;
+        {
+            let state = self.shared_state.lock().unwrap();
+            simulation = state.simulation.clone();
+        }
         egui::SidePanel::right("debug view").show(ctx, |ui| {
-            let simulation;
-            {
-                let state = self.shared_state.lock().unwrap();
-                simulation = state.simulation.clone();
-            }
             debug_view(ui, &simulation);
         });
         egui::CentralPanel::default().show(ctx, |ui| {
-            draw_maze(ui, &self.maze);
+            let maze_info = maze_info(ui, &self.maze);
+            draw_maze(ui, &self.maze, &maze_info);
+            draw_car(ui, &simulation, &maze_info);
         });
     }
 }
 
-fn debug_view(ui: &mut Ui, state: &SimuationState) {
+fn debug_view(ui: &mut Ui, state: &SimulationState) {
     debug_view_row(ui, "Frame", state.frame as f64, FormatType::BigInt);
     debug_view_row(
         ui,
@@ -128,7 +138,7 @@ fn debug_view_row(ui: &mut Ui, title: &str, value: f64, format_type: FormatType)
     ui.label(RichText::new(display).strong());
 }
 
-fn draw_maze(ui: &mut Ui, maze: &Maze) {
+fn maze_info(ui: &mut Ui, maze: &Maze) -> MazeInfo {
     let size = ui.available_size();
     let top_left = Pos2 { x: 20.0, y: 15.0 };
     let bottom_right = Pos2 {
@@ -136,27 +146,61 @@ fn draw_maze(ui: &mut Ui, maze: &Maze) {
         y: size.y,
     };
     let border = Rect::from_two_pos(top_left, bottom_right);
-    let border_size = border.size();
+    let y = maze.size.0 as f32;
+    let x = maze.size.1 as f32;
+    let square = vec2(border.width() / x as f32, border.height() / y as f32);
+    MazeInfo {
+        border,
+        square,
+        x,
+        y,
+    }
+}
+
+fn rotate(v: egui::Vec2, angle_rad: f32) -> egui::Vec2 {
+    let cos_theta = angle_rad.cos();
+    let sin_theta = angle_rad.sin();
+
+    egui::Vec2::new(
+        v.x * cos_theta - v.y * sin_theta,
+        v.x * sin_theta + v.y * cos_theta,
+    )
+}
+
+fn draw_car(ui: &mut Ui, simulation: &SimulationState, maze_info: &MazeInfo) {
     let stroke = Stroke::new(1.0, Color32::WHITE);
-    let shape = Shape::rect_stroke(border, Rounding::ZERO, stroke);
-    ui.painter().add(shape);
-    let maze_size_y = maze.size.0;
-    let maze_size_x = maze.size.1;
-    let square_size = Vec2::new(
-        border.width() / maze_size_x as f32,
-        border.height() / maze_size_y as f32,
+    let pos = &simulation.position;
+    let square = maze_info.square;
+    let v1 = vec2(0.6 * square.x, 0.0);
+    let v2 = vec2(0.0, 0.15 * square.y);
+    let v3 = vec2(0.0, -0.15 * square.y);
+    let mut vec = vec![v1, v2, v3];
+    for i in 0..vec.len() {
+        vec[i] = rotate(vec[i], simulation.angle);
+    }
+    let mut shape = Shape::convex_polygon(
+        vec![vec[0].to_pos2(), vec[1].to_pos2(), vec[2].to_pos2()],
+        Color32::LIGHT_YELLOW,
+        stroke,
     );
-    for ix in 0..maze_size_x {
-        for iy in 0..maze_size_y {
+    let x = pos.x / maze_info.x;
+    let y = pos.y / maze_info.y;
+    let center = maze_info.border.lerp_inside(vec2(x, y)).to_vec2();
+    shape.translate(center);
+    ui.painter().add(shape);
+}
+
+fn draw_maze(ui: &mut Ui, maze: &Maze, maze_info: &MazeInfo) {
+    let stroke = Stroke::new(1.0, Color32::WHITE);
+    let shape = Shape::rect_stroke(maze_info.border, Rounding::ZERO, stroke);
+    ui.painter().add(shape);
+    for ix in 0..maze_info.x as i32 {
+        for iy in 0..maze_info.y as i32 {
             if let Some(field) = maze.get_field(&(ix, iy).into()) {
-                let x = border_size.x / maze_size_x as f32 * ix as f32
-                    + square_size.x / 2.0
-                    + top_left.x;
-                let y = border_size.y / maze_size_y as f32 * iy as f32
-                    + square_size.y / 2.0
-                    + top_left.y;
-                let center = Pos2::new(x, y);
-                let square = Rect::from_center_size(center, square_size);
+                let x = (ix as f32 + 0.5) / maze_info.x;
+                let y = (iy as f32 + 0.5) / maze_info.y;
+                let center = maze_info.border.lerp_inside(vec2(x, y));
+                let square = Rect::from_center_size(center, maze_info.square);
                 draw_field(ui, stroke, &square, &field);
             }
         }
