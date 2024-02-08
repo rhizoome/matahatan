@@ -85,7 +85,9 @@ pub struct SimuationState {
     frame: i64,
     position: SimVec2,
     velocity: f32,
-    angle: f32, // radian
+    angle: f32,        // radian
+    steering: f32,     // input
+    acceleration: f32, // input
 }
 
 pub struct SharedState {
@@ -105,6 +107,8 @@ impl SharedState {
                 position: SimVec2 { x: 0.0, y: 0.0 },
                 velocity: 0.0,
                 angle: 0.0,
+                steering: 0.0,
+                acceleration: 0.0,
             },
             config: SimuationConfig::new(framerate),
         }

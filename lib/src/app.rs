@@ -89,13 +89,13 @@ fn debug_view(ui: &mut Ui, state: &SimuationState) {
     debug_view_row(ui, "Frame", state.frame as f64, FormatType::BigInt);
     debug_view_row(
         ui,
-        "MidFloat x",
+        "Position x",
         state.position.x as f64,
         FormatType::MidFloat,
     );
     debug_view_row(
         ui,
-        "MidFloat y",
+        "Position y",
         state.position.y as f64,
         FormatType::MidFloat,
     );
@@ -103,14 +103,26 @@ fn debug_view(ui: &mut Ui, state: &SimuationState) {
     let angle_deg = state.angle as f64 * (180.0 / std::f64::consts::PI);
     debug_view_row(ui, "Angle (deg)", angle_deg, FormatType::MidFloat);
     debug_view_row(ui, "Angle (rad)", state.angle as f64, FormatType::Float);
+    debug_view_row(
+        ui,
+        "Steering (input)",
+        state.steering as f64,
+        FormatType::Float,
+    );
+    debug_view_row(
+        ui,
+        "Acceleration (input)",
+        state.acceleration as f64,
+        FormatType::Float,
+    );
 }
 
 fn debug_view_row(ui: &mut Ui, title: &str, value: f64, format_type: FormatType) {
     ui.label(format!("{title}:"));
     let display = match format_type {
         FormatType::BigInt => format!("{:010}", value),
-        FormatType::MidFloat => format!("{:07.3}", value),
-        FormatType::Float => format!("{:.5}", value),
+        FormatType::MidFloat => format!("{:+08.3}", value),
+        FormatType::Float => format!("{:+.5}", value),
         _ => format!("error"),
     };
     ui.label(RichText::new(display).strong());
