@@ -1,5 +1,5 @@
-use super::{maze_from_seed_and_kind, MazeSpec, SimState};
-use egui::{Color32, Pos2, Rect, Rounding, Shape, Stroke, Ui, Vec2};
+use super::{maze_from_seed_and_kind, MazeSpec, SharedState, SimuationState};
+use egui::{Color32, Pos2, Rect, RichText, Rounding, Shape, Stroke, Ui, Vec2};
 use maze_generator::prelude::*;
 use std::sync::{Arc, Mutex};
 
@@ -15,12 +15,19 @@ impl Default for MatahatanAppState {
 pub struct MatahatanApp {
     maze: Maze,
     maze_spec: MazeSpec,
-    shared_state: Arc<Mutex<SimState>>,
+    shared_state: Arc<Mutex<SharedState>>,
     app_state: MatahatanAppState,
 }
 
+enum FormatType {
+    BigInt,
+    MidFloat,
+    ExactFloat,
+    Float,
+}
+
 impl MatahatanApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, shared_state: Arc<Mutex<SimState>>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, shared_state: Arc<Mutex<SharedState>>) -> Self {
         let app;
         let maze_spec;
         {
@@ -64,10 +71,49 @@ impl eframe::App for MatahatanApp {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.update_maze();
+        egui::SidePanel::right("debug view").show(ctx, |ui| {
+            let simulation;
+            {
+                let state = self.shared_state.lock().unwrap();
+                simulation = state.simulation.clone();
+            }
+            debug_view(ui, &simulation);
+        });
         egui::CentralPanel::default().show(ctx, |ui| {
             draw_maze(ui, &self.maze);
         });
     }
+}
+
+fn debug_view(ui: &mut Ui, state: &SimuationState) {
+    debug_view_row(ui, "Frame", state.frame as f64, FormatType::BigInt);
+    debug_view_row(
+        ui,
+        "MidFloat x",
+        state.position.x as f64,
+        FormatType::MidFloat,
+    );
+    debug_view_row(
+        ui,
+        "MidFloat y",
+        state.position.y as f64,
+        FormatType::MidFloat,
+    );
+    debug_view_row(ui, "Velocity", state.velocity as f64, FormatType::Float);
+    let angle_deg = state.angle as f64 * (180.0 / std::f64::consts::PI);
+    debug_view_row(ui, "Angle (deg)", angle_deg, FormatType::MidFloat);
+    debug_view_row(ui, "Angle (rad)", state.angle as f64, FormatType::Float);
+}
+
+fn debug_view_row(ui: &mut Ui, title: &str, value: f64, format_type: FormatType) {
+    ui.label(format!("{title}:"));
+    let display = match format_type {
+        FormatType::BigInt => format!("{:010}", value),
+        FormatType::MidFloat => format!("{:07.3}", value),
+        FormatType::Float => format!("{:.5}", value),
+        _ => format!("error"),
+    };
+    ui.label(RichText::new(display).strong());
 }
 
 fn draw_maze(ui: &mut Ui, maze: &Maze) {

@@ -14,6 +14,10 @@ use std::{thread, time};
 const MAZE_X: i32 = 25;
 const MAZE_Y: i32 = 25;
 
+const DEFAULT_FRAMERATE: f32 = 25.0;
+const STEERING_SCALER: f32 = 1.0;
+const ACCELERATION_SCALER: f32 = 1.0;
+
 #[derive(Clone, PartialEq)]
 pub enum MazeKind {
     Ellers,
@@ -53,22 +57,62 @@ impl MazeSpec {
     }
 }
 
-pub struct SimState {
-    ctx: Option<egui::Context>,
-    maze_spec: MazeSpec,
+#[derive(Clone)]
+pub struct SimuationConfig {
+    framerate: f32,
+    steering_scaler: f32,
+    acceleration_scaler: f32,
 }
 
-impl SimState {
-    pub fn new() -> Self {
-        SimState {
+impl SimuationConfig {
+    pub fn new(framerate: f32) -> Self {
+        SimuationConfig {
+            framerate: framerate,
+            steering_scaler: STEERING_SCALER / framerate,
+            acceleration_scaler: ACCELERATION_SCALER / framerate,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct SimVec2 {
+    x: f32,
+    y: f32,
+}
+
+#[derive(Clone)]
+pub struct SimuationState {
+    frame: i64,
+    position: SimVec2,
+    velocity: f32,
+    angle: f32, // radian
+}
+
+pub struct SharedState {
+    ctx: Option<egui::Context>,
+    maze_spec: MazeSpec,
+    simulation: SimuationState,
+    config: SimuationConfig,
+}
+
+impl SharedState {
+    pub fn new(framerate: f32) -> Self {
+        SharedState {
             ctx: None,
             maze_spec: MazeSpec::random(),
+            simulation: SimuationState {
+                frame: 0,
+                position: SimVec2 { x: 0.0, y: 0.0 },
+                velocity: 0.0,
+                angle: 0.0,
+            },
+            config: SimuationConfig::new(framerate),
         }
     }
 }
 
 pub fn run_simulation(gui: bool) {
-    let shared_state = Arc::new(Mutex::new(SimState::new()));
+    let shared_state = Arc::new(Mutex::new(SharedState::new(DEFAULT_FRAMERATE)));
     let shared_state_clone = Arc::clone(&shared_state);
     let handle = thread::spawn(move || {
         simulation_loop(shared_state_clone);
@@ -79,27 +123,36 @@ pub fn run_simulation(gui: bool) {
     handle.join().unwrap();
 }
 
-fn simulation_loop(shared_state: Arc<Mutex<SimState>>) {
-    let mut close = false;
-    let sleep_time = time::Duration::from_millis(1000);
-    while !close {
+fn simulation_loop(shared_state: Arc<Mutex<SharedState>>) {
+    let mut running = true;
+    let sleep_time;
+    {
+        let mut state = shared_state.lock().unwrap();
+        sleep_time = time::Duration::from_secs_f32(1.0 / state.config.framerate);
+    }
+    while running {
         {
             let mut state = shared_state.lock().unwrap();
-            state.maze_spec = MazeSpec::random();
+            let config = state.config.clone();
+            simulation_step(config, &mut state.simulation);
             if let Some(ctx) = &state.ctx {
                 ctx.input(|s| {
                     if s.viewport().close_requested() {
-                        close = true;
+                        running = false;
                     }
                 });
                 ctx.request_repaint();
             }
         }
-        thread::sleep(sleep_time); // TODO will be driven by rlua or stdin
+        thread::sleep(sleep_time);
     }
 }
 
-fn show_maze(shared_state: Arc<Mutex<SimState>>) -> eframe::Result<()> {
+fn simulation_step(config: SimuationConfig, state: &mut SimuationState) {
+    state.frame += 1;
+}
+
+fn show_maze(shared_state: Arc<Mutex<SharedState>>) -> eframe::Result<()> {
     env_logger::init();
 
     let native_options = eframe::NativeOptions {
