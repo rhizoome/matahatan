@@ -12,6 +12,7 @@ env_logger = "0.11.1"
 gamepads = "0.1.6"
 log = "0.4.20"
 maze_generator = "2.0.0"
+ncollide2d = "0.33.0"
 rand = "0.8.5"
 serde = { version = "1.0.196", features = ["derive"] }
 

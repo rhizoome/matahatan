@@ -76,13 +76,13 @@ pub struct SimulationConfig {
 }
 
 impl SimulationConfig {
-    pub fn new(config: &Config, maze: &Maze) -> Self {
+    pub fn new(config: &Config, size: Vec2) -> Self {
         SimulationConfig {
             framerate: config.framerate,
             steering_scaler: STEERING_SCALER,
             acceleration_scaler: ACCELERATION_SCALER,
             zero: vec2(0.0, 0.0),
-            size: vec2(maze.size.1 as f32, maze.size.0 as f32),
+            size,
             human: config.stick,
         }
     }
@@ -99,31 +99,40 @@ pub struct SimulationState {
     acceleration: f32, // input
 }
 
-pub struct SharedState {
-    ctx: Option<egui::Context>,
+pub struct LocalState {
     gamepads: Option<Gamepads>,
-    maze_spec: MazeSpec,
     maze: Maze,
-    simulation: SimulationState,
-    config: SimulationConfig,
+    shared_state: Arc<Mutex<SharedState>>,
 }
 
-impl SharedState {
-    pub fn new(config: &Config) -> Self {
+impl LocalState {
+    pub fn new(config: &Config, maze: Maze, shared_state: Arc<Mutex<SharedState>>) -> Self {
         let gamepads;
         if config.stick {
             gamepads = Some(Gamepads::new());
         } else {
             gamepads = None;
         }
-        let spec = MazeSpec::random();
-        let spec2 = spec.clone();
-        let maze = maze_from_seed_and_kind(spec2.seed, spec2.kind);
+        LocalState {
+            gamepads,
+            maze,
+            shared_state,
+        }
+    }
+}
+
+pub struct SharedState {
+    ctx: Option<egui::Context>,
+    maze_spec: MazeSpec,
+    simulation: SimulationState,
+    config: SimulationConfig,
+}
+
+impl SharedState {
+    pub fn new(config: &Config, maze_spec: MazeSpec, size: Vec2) -> Self {
         SharedState {
             ctx: None,
-            gamepads,
-            maze_spec: spec,
-            maze: maze.clone(),
+            maze_spec,
             simulation: SimulationState {
                 frame: 0,
                 position: vec2(0.0, 0.0),
@@ -133,16 +142,24 @@ impl SharedState {
                 steering: 0.0,
                 acceleration: 0.0,
             },
-            config: SimulationConfig::new(config, &maze),
+            config: SimulationConfig::new(config, size),
         }
     }
 }
 
 pub fn run_simulation(config: &Config) {
-    let shared_state = Arc::new(Mutex::new(SharedState::new(config)));
-    let shared_state_clone = Arc::clone(&shared_state);
+    let maze_spec = MazeSpec::random();
+    let maze_spec2 = maze_spec.clone();
+    let maze = maze_from_seed_and_kind(maze_spec2.seed, maze_spec2.kind);
+    let size = vec2(maze.size.1 as f32, maze.size.0 as f32);
+    let shared_state = Arc::new(Mutex::new(SharedState::new(
+        config,
+        maze_spec.clone(),
+        size,
+    )));
+    let mut local_state = LocalState::new(config, maze, shared_state.clone());
     let handle = thread::spawn(move || {
-        simulation_loop(shared_state_clone);
+        simulation_loop(&mut local_state);
     });
     if config.gui {
         show_maze(shared_state).unwrap();
@@ -150,18 +167,19 @@ pub fn run_simulation(config: &Config) {
     handle.join().unwrap();
 }
 
-fn simulation_loop(shared_state: Arc<Mutex<SharedState>>) {
+fn simulation_loop(local_state: &mut LocalState) {
     let mut running = true;
+    let shared_state = local_state.shared_state.clone();
     let sleep_time;
     {
-        let mut state = shared_state.lock().unwrap();
+        let state = shared_state.lock().unwrap();
         sleep_time = time::Duration::from_secs_f32(1.0 / state.config.framerate);
     }
     while running {
         {
             let mut state = shared_state.lock().unwrap();
             let config = state.config.clone();
-            input_step(&mut state);
+            input_step(local_state, &mut state);
             simulation_step(config, &mut state.simulation);
             if let Some(ctx) = &state.ctx {
                 ctx.input(|s| {
@@ -176,8 +194,8 @@ fn simulation_loop(shared_state: Arc<Mutex<SharedState>>) {
     }
 }
 
-fn input_step(state: &mut SharedState) {
-    if let Some(gamepads) = &mut state.gamepads {
+fn input_step(local_state: &mut LocalState, state: &mut SharedState) {
+    if let Some(gamepads) = &mut local_state.gamepads {
         gamepads.poll();
 
         for gamepad in gamepads.all() {
@@ -199,15 +217,16 @@ fn simulation_step(config: SimulationConfig, state: &mut SimulationState) {
         state.acceleration = state.acceleration.powi(3);
     }
     if state.acceleration.signum() < 0.0 {
-        state.velocity += (state.acceleration * config.acceleration_scaler * 5.0);
+        state.velocity += state.acceleration * config.acceleration_scaler * 5.0;
     } else {
-        state.velocity += (state.acceleration * config.acceleration_scaler);
+        state.velocity += state.acceleration * config.acceleration_scaler;
     }
     state.velocity = state.velocity.max(0.0);
     let vel_scale = (state.velocity.abs() * 10.0).max(1.0);
     state.angle += state.steering * config.steering_scaler / vel_scale;
     state.velocity_v = Vec2::angled(state.angle) * state.velocity;
     state.position += state.velocity_v;
+    // Replace with collision detection
     let pos_new = state.position.clamp(config.zero, config.size);
     if state.position != pos_new {
         let dec = state.velocity * 0.1 + 0.01;

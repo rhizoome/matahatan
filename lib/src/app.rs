@@ -30,7 +30,6 @@ pub struct MatahatanApp {
 enum FormatType {
     BigInt,
     MidFloat,
-    ExactFloat,
     Float,
 }
 
@@ -133,7 +132,6 @@ fn debug_view_row(ui: &mut Ui, title: &str, value: f64, format_type: FormatType)
         FormatType::BigInt => format!("{:010}", value),
         FormatType::MidFloat => format!("{:+08.3}", value),
         FormatType::Float => format!("{:+.5}", value),
-        _ => format!("error"),
     };
     ui.label(RichText::new(display).strong());
 }
