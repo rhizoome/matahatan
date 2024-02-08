@@ -16,7 +16,7 @@ use std::{thread, time};
 const MAZE_X: i32 = 25;
 const MAZE_Y: i32 = 25;
 
-const STEERING_SCALER: f32 = 1.0;
+const STEERING_SCALER: f32 = 0.4;
 const ACCELERATION_SCALER: f32 = 0.01;
 
 #[derive(Clone)]
