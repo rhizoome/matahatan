@@ -1,5 +1,5 @@
 use clap::{Arg, ArgMatches, Command};
-use matahatan_lib::{run_simulation, Config};
+use matahatan_lib::{run_simulation, Config, MazeKind};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Arg::new("stdio")
                         .short('o')
                         .long("stdio")
-                        .help("Run the simulation in stdio-mode")
+                        .help("Run the simulation in stdio-mode (disables FPS)")
                         .num_args(0),
                 )
                 .arg(
@@ -47,6 +47,22 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .long("stick")
                         .help("Run the simulation with stick (gamepad/joystick)")
                         .num_args(0),
+                )
+                .arg(
+                    Arg::new("maze-seed")
+                        .short('m')
+                        .long("maze-seed")
+                        .default_value("")
+                        .help("Maze seed (any string)")
+                        .num_args(1),
+                )
+                .arg(
+                    Arg::new("maze-kind")
+                        .short('k')
+                        .long("maze-kind")
+                        .default_value("backtracking")
+                        .help("Maze kind ('ellers', 'backtracking', 'growing_tree', 'prims')")
+                        .num_args(1),
                 ),
         )
         .subcommand(
@@ -71,11 +87,30 @@ fn simulate(m: &ArgMatches) {
         Some(fps_str) => fps_str.parse().unwrap_or(25.0_f32),
         None => 25.0_f32,
     };
+    let kind = match m.get_one::<String>("maze-kind") {
+        Some(kind_str) => match kind_str.as_str() {
+            "ellers" => MazeKind::Ellers,
+            "backtracking" => MazeKind::Backtracking,
+            "growing_tree" => MazeKind::GrowingTree,
+            "prims" => MazeKind::Prims,
+            _ => MazeKind::Backtracking,
+        },
+        None => MazeKind::Backtracking,
+    };
+    let seed = match m.get_one::<String>("maze-seed") {
+        Some(seed_str) => match seed_str.as_str() {
+            "" => None,
+            _ => Some(seed_str.clone()),
+        },
+        None => None,
+    };
     let config = Config {
         gui,
         stdio,
         stick,
         framerate,
+        kind,
+        seed,
     };
     run_simulation(&config);
 }

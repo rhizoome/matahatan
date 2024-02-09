@@ -19,6 +19,7 @@ use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
 use ncollide2d::world::CollisionWorld;
 use rand::Rng;
 use rand::RngCore;
+use sha2::{Digest, Sha256};
 use std::{thread, time};
 
 const MAZE_X: i32 = 25;
@@ -34,9 +35,11 @@ pub struct Config {
     pub stdio: bool,
     pub stick: bool,
     pub framerate: f32,
+    pub seed: Option<String>,
+    pub kind: MazeKind,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum MazeKind {
     Ellers,
     Backtracking,
@@ -71,6 +74,16 @@ impl MazeSpec {
         MazeSpec {
             seed: seed,
             kind: MazeKind::random(),
+        }
+    }
+
+    pub fn from_string(seed: &String, kind: MazeKind) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(seed);
+        let result = hasher.finalize();
+        MazeSpec {
+            seed: result.into(),
+            kind,
         }
     }
 }
@@ -183,7 +196,12 @@ impl SharedState {
 }
 
 pub fn run_simulation(config: &Config) {
-    let maze_spec = MazeSpec::random();
+    let maze_spec;
+    if let Some(seed) = &config.seed {
+        maze_spec = MazeSpec::from_string(seed, config.kind);
+    } else {
+        maze_spec = MazeSpec::random();
+    }
     let maze_spec2 = maze_spec.clone();
     let maze = maze_from_seed_and_kind(maze_spec2.seed, maze_spec2.kind);
     if config.stdio {
