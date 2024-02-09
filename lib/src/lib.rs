@@ -10,9 +10,9 @@ use maze_generator::prelude::*;
 use maze_generator::prims_algorithm::PrimsGenerator;
 use maze_generator::recursive_backtracking::RbGenerator;
 use ncollide2d::bounding_volume::HasBoundingVolume;
-use ncollide2d::math::{Isometry, Vector};
+use ncollide2d::math::{Isometry, Point, Vector};
 use ncollide2d::pipeline::object::{CollisionGroups, GeometricQueryType};
-use ncollide2d::query::contact;
+use ncollide2d::query::{contact, PointQuery, Ray};
 use ncollide2d::shape::{Cuboid, ShapeHandle};
 use ncollide2d::world::CollisionWorld;
 use rand::Rng;
@@ -21,6 +21,7 @@ use std::{thread, time};
 
 const MAZE_X: i32 = 25;
 const MAZE_Y: i32 = 25;
+const PI: f32 = std::f32::consts::PI;
 
 const STEERING_SCALER: f32 = 0.4;
 const ACCELERATION_SCALER: f32 = 0.01;
@@ -112,6 +113,7 @@ pub struct LocalState {
     shared_state: Arc<Mutex<SharedState>>,
     world: CollisionWorld<f32, ()>,
     cuboid: Cuboid<f32>,
+    cuboid2: Cuboid<f32>,
     wall: Cuboid<f32>,
     active: CollisionGroups,
     passive: CollisionGroups,
@@ -131,13 +133,15 @@ impl LocalState {
         let mut passive = CollisionGroups::new();
         passive.set_membership(&[2]);
         passive.set_whitelist(&[1]);
+        let cub_dim = 0.15;
         LocalState {
             gamepads,
             maze,
             shared_state,
             world: CollisionWorld::new(0.02),
-            cuboid: Cuboid::new(Vector::new(0.15, 0.15)),
-            wall: Cuboid::new(Vector::new(0.4, 0.2)),
+            cuboid: Cuboid::new(Vector::new(cub_dim, cub_dim)),
+            cuboid2: Cuboid::new(Vector::new(cub_dim, cub_dim)),
+            wall: Cuboid::new(Vector::new(0.5, 0.1)),
             active,
             passive,
             query_type: GeometricQueryType::Contacts(0.0, 0.0),
@@ -239,6 +243,7 @@ fn simulation_step(
     config: SimulationConfig,
     state: &mut SimulationState,
 ) {
+    let max_velocity = 0.2;
     state.frame += 1;
     if config.human {
         if state.steering.abs() < 0.2 {
@@ -253,19 +258,19 @@ fn simulation_step(
         state.velocity += state.acceleration * config.acceleration_scaler;
     }
     state.velocity = state.velocity.max(0.0);
-    state.velocity = state.velocity.min(0.2);
+    state.velocity = state.velocity.min(max_velocity);
     let vel_scale = (state.velocity.abs() * 10.0).max(1.0);
     state.angle += state.steering * config.steering_scaler / vel_scale;
     state.angle_v = Vec2::angled(state.angle);
     state.velocity_v = state.angle_v * state.velocity;
     let pos = state.position + state.velocity_v;
+    let mut vel = state.velocity_v;
     let trans_vec = Vector::new(pos.x, pos.y);
     let trans_matrix = Isometry::new(trans_vec, 0.0);
-    let aabb = local_state.cuboid.bounding_volume(&trans_matrix);
+    let aabb = local_state.cuboid2.bounding_volume(&trans_matrix);
     let interferences = local_state
         .world
         .interferences_with_aabb(&aabb, &local_state.active);
-    let mut vel = state.velocity_v;
     let mut found = false;
     for interference in interferences {
         if let Some(shape) = interference.1.shape().as_shape::<Cuboid<f32>>() {
@@ -274,17 +279,20 @@ fn simulation_step(
                 &local_state.cuboid,
                 interference.1.position(),
                 shape,
-                0.0,
+                0.02,
             ) {
-                let norm = vec2(c.normal.x, c.normal.y).rot90();
-                vel = vel.dot(norm) / norm.dot(norm) * norm;
-                vel *= 0.3;
+                let pos = state.position;
+                let origin = Point::new(pos.x, pos.y);
+                let closest_point = shape.project_point(&interference.1.position(), &origin, true);
+                println!("{:?} {:?}", origin, closest_point);
+                vel *= 0.0;
+                found = true;
             }
         }
-        found = true;
     }
     if found {
-        state.velocity -= state.velocity * 0.03 + 0.001;
+        state.velocity -= state.velocity * 0.3 + 0.001;
+        state.velocity = state.velocity.max(0.0);
     }
     state.position += vel;
 }
