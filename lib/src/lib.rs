@@ -12,7 +12,7 @@ use maze_generator::recursive_backtracking::RbGenerator;
 use ncollide2d::bounding_volume::HasBoundingVolume;
 use ncollide2d::math::{Isometry, Point, Vector};
 use ncollide2d::pipeline::object::{CollisionGroups, GeometricQueryType};
-use ncollide2d::query::{contact, PointQuery, Ray};
+use ncollide2d::query::PointQuery;
 use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
 use ncollide2d::world::CollisionWorld;
 use rand::Rng;
@@ -77,7 +77,9 @@ pub struct SimulationConfig {
     framerate: f32,
     steering_scaler: f32,
     acceleration_scaler: f32,
+    #[allow(dead_code)]
     zero: Vec2,
+    #[allow(dead_code)]
     size: Vec2,
     human: bool,
 }
@@ -137,8 +139,8 @@ impl LocalState {
             maze,
             shared_state,
             world: CollisionWorld::new(0.05),
-            ball: Ball::new(0.1),
-            wall: Cuboid::new(Vector::new(0.5, 0.1)),
+            ball: Ball::new(0.15),
+            wall: Cuboid::new(Vector::new(0.6, 0.1)),
             active,
             passive,
             query_type: GeometricQueryType::Contacts(0.0, 0.0),
@@ -276,12 +278,17 @@ fn simulation_step(
             let closest_point = shape
                 .project_point(&interference.1.position(), &origin, true)
                 .point;
-            let direction = closest_point - origin;
-            if direction.angle(&velocity_v) < PI / 2.0 {
-                let dir = vec2(direction.x, direction.y);
-                let norm = dir.rot90();
-                vel = vel.dot(norm) / norm.dot(norm) * norm;
-                found = true;
+            if local_state
+                .ball
+                .contains_point(&trans_matrix, &closest_point)
+            {
+                let direction = closest_point - origin;
+                if direction.angle(&velocity_v) < PI / 2.0 {
+                    let dir = vec2(direction.x, direction.y);
+                    let norm = dir.rot90();
+                    vel = vel.dot(norm) / norm.dot(norm) * norm;
+                    found = true;
+                }
             }
         }
     }
