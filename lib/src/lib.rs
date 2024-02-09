@@ -287,6 +287,9 @@ fn simulation_step(
                     let dir = vec2(direction.x, direction.y);
                     let norm = dir.rot90();
                     vel = vel.dot(norm) / norm.dot(norm) * norm;
+                    if vel.length() > max_velocity / 4.0 {
+                        vel = vec2(0.0, 0.0);
+                    }
                     found = true;
                 }
             }
@@ -294,7 +297,7 @@ fn simulation_step(
     }
     state.velocity_v = vel;
     if found {
-        state.velocity -= state.velocity * 0.3 + 0.001;
+        state.velocity -= state.velocity * 0.2 + 0.001;
         state.velocity = state.velocity.max(0.0);
     }
     state.position += vel;
