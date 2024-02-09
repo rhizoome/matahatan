@@ -282,6 +282,7 @@ fn simulation_step(
                 .ball
                 .contains_point(&trans_matrix, &closest_point)
             {
+                // TODO move ball outside point
                 let direction = closest_point - origin;
                 if direction.angle(&velocity_v) < PI / 2.0 {
                     let dir = vec2(direction.x, direction.y);
