@@ -13,7 +13,7 @@ use ncollide2d::bounding_volume::HasBoundingVolume;
 use ncollide2d::math::{Isometry, Point, Vector};
 use ncollide2d::pipeline::object::{CollisionGroups, GeometricQueryType};
 use ncollide2d::query::{contact, PointQuery, Ray};
-use ncollide2d::shape::{Cuboid, ShapeHandle};
+use ncollide2d::shape::{Ball, Cuboid, ShapeHandle};
 use ncollide2d::world::CollisionWorld;
 use rand::Rng;
 use rand::RngCore;
@@ -112,7 +112,7 @@ pub struct LocalState {
     maze: Maze,
     shared_state: Arc<Mutex<SharedState>>,
     world: CollisionWorld<f32, ()>,
-    cuboid: Cuboid<f32>,
+    ball: Ball<f32>,
     wall: Cuboid<f32>,
     active: CollisionGroups,
     passive: CollisionGroups,
@@ -132,13 +132,12 @@ impl LocalState {
         let mut passive = CollisionGroups::new();
         passive.set_membership(&[2]);
         passive.set_whitelist(&[1]);
-        let cub_dim = 0.15;
         LocalState {
             gamepads,
             maze,
             shared_state,
             world: CollisionWorld::new(0.02),
-            cuboid: Cuboid::new(Vector::new(cub_dim, cub_dim)),
+            ball: Ball::new(0.15),
             wall: Cuboid::new(Vector::new(0.51, 0.1)),
             active,
             passive,
@@ -266,7 +265,7 @@ fn simulation_step(
     let velocity_v = Vector::new(state.velocity_v.x, state.velocity_v.y);
     let trans_vec = Vector::new(pos.x, pos.y);
     let trans_matrix = Isometry::new(trans_vec, 0.0);
-    let aabb = local_state.cuboid.bounding_volume(&trans_matrix);
+    let aabb = local_state.ball.bounding_volume(&trans_matrix);
     let interferences = local_state
         .world
         .interferences_with_aabb(&aabb, &local_state.active);
