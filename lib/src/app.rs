@@ -198,6 +198,12 @@ fn draw_maze(ui: &mut Ui, maze: &Maze, maze_info: &MazeInfo) {
     let stroke = Stroke::new(1.0, Color32::WHITE);
     let shape = Shape::rect_stroke(maze_info.border, Rounding::ZERO, stroke);
     ui.painter().add(shape);
+    let gx = (0.5 + maze.goal.x as f32) / maze_info.x;
+    let gy = (0.5 + maze.goal.y as f32) / maze_info.y;
+    let center = maze_info.border.lerp_inside(vec2(gx, gy));
+    let start = Rect::from_center_size(center, maze_info.square);
+    let shape = Shape::rect_filled(start, Rounding::ZERO, Color32::DARK_GREEN);
+    ui.painter().add(shape);
     for ix in 0..maze_info.x as i32 {
         for iy in 0..maze_info.y as i32 {
             if let Some(field) = maze.get_field(&(ix, iy).into()) {
