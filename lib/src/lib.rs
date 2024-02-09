@@ -1,6 +1,8 @@
 mod app;
+mod stdio;
 pub use app::MatahatanApp;
 use std::sync::{Arc, Mutex};
+use stdio::{get_input, write_maze, write_output};
 
 use egui::{vec2, Vec2};
 use gamepads::Gamepads;
@@ -29,6 +31,7 @@ const ACCELERATION_SCALER: f32 = 0.01;
 #[derive(Clone)]
 pub struct Config {
     pub gui: bool,
+    pub stdio: bool,
     pub stick: bool,
     pub framerate: f32,
 }
@@ -101,6 +104,7 @@ impl SimulationConfig {
 pub struct SimulationState {
     frame: i64,
     position: Vec2,
+    collision: bool,
     velocity: f32,
     velocity_v: Vec2,
     angle_v: Vec2,
@@ -110,6 +114,7 @@ pub struct SimulationState {
 }
 
 pub struct LocalState {
+    config: Config,
     gamepads: Option<Gamepads>,
     maze: Maze,
     shared_state: Arc<Mutex<SharedState>>,
@@ -135,6 +140,7 @@ impl LocalState {
         passive.set_membership(&[2]);
         passive.set_whitelist(&[1]);
         LocalState {
+            config: config.clone(),
             gamepads,
             maze,
             shared_state,
@@ -163,6 +169,7 @@ impl SharedState {
             simulation: SimulationState {
                 frame: 0,
                 position: vec2(0.5, 0.5),
+                collision: false,
                 velocity: 0.0,
                 velocity_v: vec2(0.0, 0.0),
                 angle_v: vec2(0.0, 0.0),
@@ -179,6 +186,9 @@ pub fn run_simulation(config: &Config) {
     let maze_spec = MazeSpec::random();
     let maze_spec2 = maze_spec.clone();
     let maze = maze_from_seed_and_kind(maze_spec2.seed, maze_spec2.kind);
+    if config.stdio {
+        write_maze(&maze);
+    }
     let size = vec2(maze.size.1 as f32, maze.size.0 as f32);
     let shared_state = Arc::new(Mutex::new(SharedState::new(
         config,
@@ -219,8 +229,13 @@ fn simulation_loop(local_state: &mut LocalState) {
                 });
                 ctx.request_repaint();
             }
+            if local_state.config.stdio {
+                write_output(&state.simulation);
+            }
         }
-        thread::sleep(sleep_time);
+        if !local_state.config.stdio {
+            thread::sleep(sleep_time);
+        }
     }
 }
 
@@ -234,6 +249,14 @@ fn input_step(local_state: &mut LocalState, state: &mut SharedState) {
             state.simulation.steering = (ls.0 + rs.0).min(1.0).max(-1.0);
             state.simulation.acceleration = (ls.1 + rs.1).min(1.0).max(-1.0);
         }
+    } else if local_state.config.stdio {
+        if let Some(input) = get_input() {
+            state.simulation.steering = input.steering.min(1.0).max(-1.0);
+            state.simulation.acceleration = input.acceleration.min(1.0).max(-1.0);
+        } else {
+            let sleep_time = time::Duration::from_secs_f32(0.1);
+            thread::sleep(sleep_time);
+        }
     }
 }
 
@@ -242,6 +265,7 @@ fn simulation_step(
     config: SimulationConfig,
     state: &mut SimulationState,
 ) {
+    state.collision = false;
     let max_velocity = 0.2;
     state.frame += 1;
     if config.human {
@@ -298,6 +322,7 @@ fn simulation_step(
     }
     state.velocity_v = vel;
     if found {
+        state.collision = true;
         state.velocity -= state.velocity * 0.2 + 0.001;
         state.velocity = state.velocity.max(0.0);
     }
