@@ -263,35 +263,27 @@ fn simulation_step(
     state.angle += state.steering * config.steering_scaler / vel_scale;
     state.angle_v = Vec2::angled(state.angle);
     state.velocity_v = state.angle_v * state.velocity;
-    let pos = state.position + state.velocity_v;
+    let pos = state.position;
     let mut vel = state.velocity_v;
     let velocity_v = Vector::new(state.velocity_v.x, state.velocity_v.y);
     let trans_vec = Vector::new(pos.x, pos.y);
     let trans_matrix = Isometry::new(trans_vec, 0.0);
-    let aabb = local_state.cuboid2.bounding_volume(&trans_matrix);
+    let aabb = local_state.cuboid.bounding_volume(&trans_matrix);
     let interferences = local_state
         .world
         .interferences_with_aabb(&aabb, &local_state.active);
     let mut found = false;
     for interference in interferences {
         if let Some(shape) = interference.1.shape().as_shape::<Cuboid<f32>>() {
-            if let Some(mut c) = contact(
-                &trans_matrix,
-                &local_state.cuboid,
-                interference.1.position(),
-                shape,
-                0.02,
-            ) {
-                let pos = state.position;
-                let origin = Point::new(pos.x, pos.y);
-                let closest_point = shape
-                    .project_point(&interference.1.position(), &origin, true)
-                    .point;
-                let direction = closest_point - origin;
-                if direction.angle(&velocity_v) < PI / 2.0 {
-                    let dir = vec2(direction.x, direction.y).rot90();
-                    vel = vel.dot(dir) / dir.dot(dir) * dir;
-                }
+            let pos = state.position;
+            let origin = Point::new(pos.x, pos.y);
+            let closest_point = shape
+                .project_point(&interference.1.position(), &origin, true)
+                .point;
+            let direction = closest_point - origin;
+            if direction.angle(&velocity_v) < PI / 2.0 {
+                let dir = vec2(direction.x, direction.y).rot90();
+                vel = vel.dot(dir) / dir.dot(dir) * dir;
                 found = true;
             }
         }
