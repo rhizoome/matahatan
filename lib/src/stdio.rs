@@ -22,6 +22,10 @@ pub struct Output {
 struct MazeJson {
     x: i32,
     y: i32,
+    start_x: i32,
+    start_y: i32,
+    goal_x: i32,
+    goal_y: i32,
     passages: Vec<Vec<Vec<String>>>,
 }
 
@@ -76,7 +80,15 @@ pub fn write_maze(maze: &Maze) {
             }
         }
     }
-    let maze_json = MazeJson { x, y, passages };
+    let maze_json = MazeJson {
+        x,
+        y,
+        start_x: maze.start.x,
+        start_y: maze.start.y,
+        goal_x: maze.goal.x,
+        goal_y: maze.goal.y,
+        passages,
+    };
     match serde_json::to_string(&maze_json) {
         Ok(out_str) => println!("{}", out_str),
         Err(_) => (),
