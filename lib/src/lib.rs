@@ -141,7 +141,7 @@ impl LocalState {
             world: CollisionWorld::new(0.02),
             cuboid: Cuboid::new(Vector::new(cub_dim, cub_dim)),
             cuboid2: Cuboid::new(Vector::new(cub_dim, cub_dim)),
-            wall: Cuboid::new(Vector::new(0.5, 0.1)),
+            wall: Cuboid::new(Vector::new(0.51, 0.1)),
             active,
             passive,
             query_type: GeometricQueryType::Contacts(0.0, 0.0),
@@ -275,15 +275,15 @@ fn simulation_step(
     let mut found = false;
     for interference in interferences {
         if let Some(shape) = interference.1.shape().as_shape::<Cuboid<f32>>() {
-            let pos = state.position;
             let origin = Point::new(pos.x, pos.y);
             let closest_point = shape
                 .project_point(&interference.1.position(), &origin, true)
                 .point;
             let direction = closest_point - origin;
             if direction.angle(&velocity_v) < PI / 2.0 {
-                let dir = vec2(direction.x, direction.y).rot90();
-                vel = vel.dot(dir) / dir.dot(dir) * dir;
+                let dir = vec2(direction.x, direction.y);
+                let norm = dir.rot90();
+                vel = vel.dot(norm) / norm.dot(norm) * norm;
                 found = true;
             }
         }
