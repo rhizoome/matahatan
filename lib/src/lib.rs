@@ -307,7 +307,7 @@ fn simulation_step(
     }
     state.velocity = state.velocity.max(0.0);
     state.velocity = state.velocity.min(max_velocity);
-    let vel_scale = (state.velocity.abs() * 10.0).max(1.0);
+    let vel_scale = (state.velocity.abs() * 20.0).max(1.0);
     state.angle += state.steering * config.steering_scaler / vel_scale;
     state.angle_v = Vec2::angled(state.angle);
     state.velocity_v = state.angle_v * state.velocity;
@@ -317,6 +317,9 @@ fn simulation_step(
     let trans_vec = Vector::new(pos.x, pos.y);
     let trans_matrix = Isometry::new(trans_vec, 0.0);
     let aabb = local_state.ball.bounding_volume(&trans_matrix);
+    // interference with ray crashes, I do not want to debug, interference with
+    // aabb is less safe, hence max_velocity, so we don't skip walls. Maybe it
+    // is fun for contestants to find collision-bugs.
     let interferences = local_state
         .world
         .interferences_with_aabb(&aabb, &local_state.active);
