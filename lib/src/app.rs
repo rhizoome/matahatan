@@ -109,6 +109,12 @@ fn debug_view(ui: &mut Ui, state: &SimulationState) {
         FormatType::MidFloat,
     );
     debug_view_row(ui, "Velocity", state.velocity as f64, FormatType::Float);
+    debug_view_row(
+        ui,
+        "Velocity (true)",
+        state.velocity_v.length() as f64,
+        FormatType::Float,
+    );
     let angle_deg = state.angle as f64 * (180.0 / std::f64::consts::PI);
     debug_view_row(ui, "Angle (deg)", angle_deg, FormatType::MidFloat);
     debug_view_row(ui, "Angle (rad)", state.angle as f64, FormatType::Float);

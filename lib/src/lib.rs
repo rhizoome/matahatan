@@ -263,8 +263,8 @@ fn simulation_step(
     state.angle += state.steering * config.steering_scaler / vel_scale;
     state.angle_v = Vec2::angled(state.angle);
     state.velocity_v = state.angle_v * state.velocity;
-    let pos = state.position;
     let mut vel = state.velocity_v;
+    let pos = state.position;
     let velocity_v = Vector::new(state.velocity_v.x, state.velocity_v.y);
     let trans_vec = Vector::new(pos.x, pos.y);
     let trans_matrix = Isometry::new(trans_vec, 0.0);
@@ -288,6 +288,7 @@ fn simulation_step(
             }
         }
     }
+    state.velocity_v = vel;
     if found {
         state.velocity -= state.velocity * 0.3 + 0.001;
         state.velocity = state.velocity.max(0.0);
