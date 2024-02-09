@@ -19,4 +19,4 @@ output: `{"x":0.5092106,"y":0.5038942,"angle":0.4,"collision":false}`
 - s: source passage exists
 - w: west passage exists
 
-coordiates of output (x,y: f32) match index of the pssages (floor(x), floor(y)).
+coordiates of output (x, y: f32) match index of the pssages (floor(x), floor(y)).
