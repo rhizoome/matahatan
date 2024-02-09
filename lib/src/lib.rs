@@ -262,20 +262,20 @@ fn simulation_step(
     let interferences = local_state
         .world
         .interferences_with_aabb(&aabb, &local_state.active);
-    let mut found = None;
-    // strange object has no len()
+    let mut vel = state.velocity_v;
+    let mut found = false;
     for interference in interferences {
-        found = Some(interference);
-        break;
-    }
-    if let Some(interference) = found {
+        found = true;
         if let Some(shape) = interference.1.shape().as_shape::<Segment<f32>>() {
-            println!("{:?}", shape);
+            let dir = shape.scaled_direction();
+            let norm = vec2(dir.x, dir.y);
+            vel = vel.dot(norm) / norm.dot(norm) * norm;
         }
-        state.velocity -= state.velocity * 0.1;
-    } else {
-        state.position += state.velocity_v;
     }
+    if found {
+        state.velocity -= state.velocity * 0.03 + 0.001;
+    }
+    state.position += vel;
 }
 
 fn show_maze(shared_state: Arc<Mutex<SharedState>>) -> eframe::Result<()> {
