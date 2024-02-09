@@ -9,6 +9,12 @@ use maze_generator::growing_tree::GrowingTreeGenerator;
 use maze_generator::prelude::*;
 use maze_generator::prims_algorithm::PrimsGenerator;
 use maze_generator::recursive_backtracking::RbGenerator;
+use ncollide2d::bounding_volume::HasBoundingVolume;
+use ncollide2d::math::{Isometry, Point, Vector};
+use ncollide2d::pipeline::object::{CollisionGroups, GeometricQueryType};
+use ncollide2d::query::Ray;
+use ncollide2d::shape::{Ball, Segment, ShapeHandle};
+use ncollide2d::world::CollisionWorld;
 use rand::Rng;
 use rand::RngCore;
 use std::{thread, time};
@@ -94,6 +100,7 @@ pub struct SimulationState {
     position: Vec2,
     velocity: f32,
     velocity_v: Vec2,
+    angle_v: Vec2,
     angle: f32,        // radian
     steering: f32,     // input
     acceleration: f32, // input
@@ -103,6 +110,11 @@ pub struct LocalState {
     gamepads: Option<Gamepads>,
     maze: Maze,
     shared_state: Arc<Mutex<SharedState>>,
+    world: CollisionWorld<f32, ()>,
+    ball: Ball<f32>,
+    active: CollisionGroups,
+    passive: CollisionGroups,
+    query_type: GeometricQueryType<f32>,
 }
 
 impl LocalState {
@@ -113,10 +125,20 @@ impl LocalState {
         } else {
             gamepads = None;
         }
+        let mut active = CollisionGroups::new();
+        active.set_membership(&[1]);
+        let mut passive = CollisionGroups::new();
+        passive.set_membership(&[2]);
+        passive.set_whitelist(&[1]);
         LocalState {
             gamepads,
             maze,
             shared_state,
+            world: CollisionWorld::new(0.02),
+            ball: Ball::new(0.3),
+            active,
+            passive,
+            query_type: GeometricQueryType::Contacts(0.0, 0.0),
         }
     }
 }
@@ -135,9 +157,10 @@ impl SharedState {
             maze_spec,
             simulation: SimulationState {
                 frame: 0,
-                position: vec2(0.0, 0.0),
+                position: vec2(0.5, 0.5),
                 velocity: 0.0,
                 velocity_v: vec2(0.0, 0.0),
+                angle_v: vec2(0.0, 0.0),
                 angle: 0.0,
                 steering: 0.0,
                 acceleration: 0.0,
@@ -158,6 +181,8 @@ pub fn run_simulation(config: &Config) {
         size,
     )));
     let mut local_state = LocalState::new(config, maze, shared_state.clone());
+    add_maze(&mut local_state);
+    local_state.world.update();
     let handle = thread::spawn(move || {
         simulation_loop(&mut local_state);
     });
@@ -180,7 +205,7 @@ fn simulation_loop(local_state: &mut LocalState) {
             let mut state = shared_state.lock().unwrap();
             let config = state.config.clone();
             input_step(local_state, &mut state);
-            simulation_step(config, &mut state.simulation);
+            simulation_step(local_state, config, &mut state.simulation);
             if let Some(ctx) = &state.ctx {
                 ctx.input(|s| {
                     if s.viewport().close_requested() {
@@ -207,7 +232,11 @@ fn input_step(local_state: &mut LocalState, state: &mut SharedState) {
     }
 }
 
-fn simulation_step(config: SimulationConfig, state: &mut SimulationState) {
+fn simulation_step(
+    local_state: &LocalState,
+    config: SimulationConfig,
+    state: &mut SimulationState,
+) {
     state.frame += 1;
     if config.human {
         if state.steering.abs() < 0.2 {
@@ -224,15 +253,29 @@ fn simulation_step(config: SimulationConfig, state: &mut SimulationState) {
     state.velocity = state.velocity.max(0.0);
     let vel_scale = (state.velocity.abs() * 10.0).max(1.0);
     state.angle += state.steering * config.steering_scaler / vel_scale;
-    state.velocity_v = Vec2::angled(state.angle) * state.velocity;
-    state.position += state.velocity_v;
-    // Replace with collision detection
-    let pos_new = state.position.clamp(config.zero, config.size);
-    if state.position != pos_new {
-        let dec = state.velocity * 0.1 + 0.01;
-        state.velocity -= dec;
+    state.angle_v = Vec2::angled(state.angle);
+    state.velocity_v = state.angle_v * state.velocity;
+    let pos = state.position + state.velocity_v;
+    let trans_vec = Vector::new(pos.x, pos.y);
+    let trans_matrix = Isometry::new(trans_vec, 0.0);
+    let aabb = local_state.ball.bounding_volume(&trans_matrix);
+    let interferences = local_state
+        .world
+        .interferences_with_aabb(&aabb, &local_state.active);
+    let mut found = None;
+    // strange object has no len()
+    for interference in interferences {
+        found = Some(interference);
+        break;
     }
-    state.position = pos_new;
+    if let Some(interference) = found {
+        if let Some(shape) = interference.1.shape().as_shape::<Segment<f32>>() {
+            println!("{:?}", shape);
+        }
+        state.velocity -= state.velocity * 0.1;
+    } else {
+        state.position += state.velocity_v;
+    }
 }
 
 fn show_maze(shared_state: Arc<Mutex<SharedState>>) -> eframe::Result<()> {
@@ -253,6 +296,47 @@ fn show_maze(shared_state: Arc<Mutex<SharedState>>) -> eframe::Result<()> {
         native_options,
         Box::new(|cc| Box::new(app::MatahatanApp::new(cc, shared_state))),
     )
+}
+
+fn add_maze(state: &mut LocalState) {
+    for ix in 0..state.maze.size.1 {
+        for iy in 0..state.maze.size.0 {
+            if let Some(field) = state.maze.get_field(&(ix, iy).into()) {
+                add_field(state, &field);
+            }
+        }
+    }
+}
+
+fn add_field(state: &mut LocalState, field: &Field) {
+    let x = field.coordinates.x as f32;
+    let y = field.coordinates.y as f32;
+    if !field.has_passage(&Direction::West) {
+        add_wall(state, x, y, x, y + 1.0);
+    }
+    if !field.has_passage(&Direction::East) {
+        add_wall(state, x + 1.0, y, x + 1.0, y + 1.0);
+    }
+    if !field.has_passage(&Direction::North) {
+        add_wall(state, x, y, x + 1.0, y);
+    }
+    if !field.has_passage(&Direction::South) {
+        add_wall(state, x, y + 1.0, x + 1.0, y + 1.0);
+    }
+}
+
+fn add_wall(state: &mut LocalState, x0: f32, y0: f32, x1: f32, y1: f32) {
+    let wall_start = Point::new(x0, y0);
+    let wall_end = Point::new(x1, y1);
+    let wall_shape = ShapeHandle::new(Segment::new(wall_start, wall_end));
+    let wall_position = Isometry::identity();
+    state.world.add(
+        wall_position,
+        wall_shape,
+        state.passive,
+        state.query_type,
+        (),
+    );
 }
 
 pub fn maze_from_seed_and_kind(seed: [u8; 32], kind: MazeKind) -> Maze {
