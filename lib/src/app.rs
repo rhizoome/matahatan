@@ -209,14 +209,8 @@ fn draw_field(ui: &mut Ui, stroke: Stroke, rect: &Rect, field: &Field) {
     if !field.has_passage(&Direction::West) {
         draw_line(ui, stroke, rect.left_top(), rect.left_bottom());
     }
-    if !field.has_passage(&Direction::East) {
-        draw_line(ui, stroke, rect.right_top(), rect.right_bottom());
-    }
     if !field.has_passage(&Direction::North) {
         draw_line(ui, stroke, rect.left_top(), rect.right_top());
-    }
-    if !field.has_passage(&Direction::South) {
-        draw_line(ui, stroke, rect.left_bottom(), rect.right_bottom());
     }
 }
 

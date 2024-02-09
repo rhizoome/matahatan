@@ -10,10 +10,10 @@ use maze_generator::prelude::*;
 use maze_generator::prims_algorithm::PrimsGenerator;
 use maze_generator::recursive_backtracking::RbGenerator;
 use ncollide2d::bounding_volume::HasBoundingVolume;
-use ncollide2d::math::{Isometry, Point, Vector};
+use ncollide2d::math::{Isometry, Vector};
 use ncollide2d::pipeline::object::{CollisionGroups, GeometricQueryType};
-use ncollide2d::query::Ray;
-use ncollide2d::shape::{Ball, Segment, ShapeHandle};
+use ncollide2d::query::contact;
+use ncollide2d::shape::{Cuboid, ShapeHandle};
 use ncollide2d::world::CollisionWorld;
 use rand::Rng;
 use rand::RngCore;
@@ -111,7 +111,8 @@ pub struct LocalState {
     maze: Maze,
     shared_state: Arc<Mutex<SharedState>>,
     world: CollisionWorld<f32, ()>,
-    ball: Ball<f32>,
+    cuboid: Cuboid<f32>,
+    wall: Cuboid<f32>,
     active: CollisionGroups,
     passive: CollisionGroups,
     query_type: GeometricQueryType<f32>,
@@ -135,7 +136,8 @@ impl LocalState {
             maze,
             shared_state,
             world: CollisionWorld::new(0.02),
-            ball: Ball::new(0.3),
+            cuboid: Cuboid::new(Vector::new(0.15, 0.15)),
+            wall: Cuboid::new(Vector::new(0.4, 0.2)),
             active,
             passive,
             query_type: GeometricQueryType::Contacts(0.0, 0.0),
@@ -251,6 +253,7 @@ fn simulation_step(
         state.velocity += state.acceleration * config.acceleration_scaler;
     }
     state.velocity = state.velocity.max(0.0);
+    state.velocity = state.velocity.min(0.2);
     let vel_scale = (state.velocity.abs() * 10.0).max(1.0);
     state.angle += state.steering * config.steering_scaler / vel_scale;
     state.angle_v = Vec2::angled(state.angle);
@@ -258,19 +261,27 @@ fn simulation_step(
     let pos = state.position + state.velocity_v;
     let trans_vec = Vector::new(pos.x, pos.y);
     let trans_matrix = Isometry::new(trans_vec, 0.0);
-    let aabb = local_state.ball.bounding_volume(&trans_matrix);
+    let aabb = local_state.cuboid.bounding_volume(&trans_matrix);
     let interferences = local_state
         .world
         .interferences_with_aabb(&aabb, &local_state.active);
     let mut vel = state.velocity_v;
     let mut found = false;
     for interference in interferences {
-        found = true;
-        if let Some(shape) = interference.1.shape().as_shape::<Segment<f32>>() {
-            let dir = shape.scaled_direction();
-            let norm = vec2(dir.x, dir.y);
-            vel = vel.dot(norm) / norm.dot(norm) * norm;
+        if let Some(shape) = interference.1.shape().as_shape::<Cuboid<f32>>() {
+            if let Some(mut c) = contact(
+                &trans_matrix,
+                &local_state.cuboid,
+                interference.1.position(),
+                shape,
+                0.0,
+            ) {
+                let norm = vec2(c.normal.x, c.normal.y).rot90();
+                vel = vel.dot(norm) / norm.dot(norm) * norm;
+                vel *= 0.3;
+            }
         }
+        found = true;
     }
     if found {
         state.velocity -= state.velocity * 0.03 + 0.001;
@@ -299,37 +310,40 @@ fn show_maze(shared_state: Arc<Mutex<SharedState>>) -> eframe::Result<()> {
 }
 
 fn add_maze(state: &mut LocalState) {
-    for ix in 0..state.maze.size.1 {
-        for iy in 0..state.maze.size.0 {
+    let x = state.maze.size.1;
+    let y = state.maze.size.0;
+    for ix in 0..x {
+        for iy in 0..y {
             if let Some(field) = state.maze.get_field(&(ix, iy).into()) {
                 add_field(state, &field);
             }
         }
     }
+    // Outer wall
 }
 
 fn add_field(state: &mut LocalState, field: &Field) {
-    let x = field.coordinates.x as f32;
-    let y = field.coordinates.y as f32;
     if !field.has_passage(&Direction::West) {
-        add_wall(state, x, y, x, y + 1.0);
-    }
-    if !field.has_passage(&Direction::East) {
-        add_wall(state, x + 1.0, y, x + 1.0, y + 1.0);
+        add_wall(state, field, true);
     }
     if !field.has_passage(&Direction::North) {
-        add_wall(state, x, y, x + 1.0, y);
-    }
-    if !field.has_passage(&Direction::South) {
-        add_wall(state, x, y + 1.0, x + 1.0, y + 1.0);
+        add_wall(state, field, false);
     }
 }
 
-fn add_wall(state: &mut LocalState, x0: f32, y0: f32, x1: f32, y1: f32) {
-    let wall_start = Point::new(x0, y0);
-    let wall_end = Point::new(x1, y1);
-    let wall_shape = ShapeHandle::new(Segment::new(wall_start, wall_end));
-    let wall_position = Isometry::identity();
+fn add_wall(state: &mut LocalState, field: &Field, vertical: bool) {
+    let wall_shape = ShapeHandle::new(state.wall);
+    let angle;
+    let mut x = field.coordinates.x as f32;
+    let mut y = field.coordinates.y as f32;
+    if vertical {
+        angle = std::f32::consts::PI / 2.0;
+        y += 0.5;
+    } else {
+        angle = 0.0;
+        x += 0.5;
+    }
+    let wall_position = Isometry::new(Vector::new(x, y), angle);
     state.world.add(
         wall_position,
         wall_shape,
