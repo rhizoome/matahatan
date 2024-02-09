@@ -82,7 +82,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn simulate(m: &ArgMatches) {
     let gui = !m.get_flag("no-gui");
     let stick = m.get_flag("stick");
-    let stdio = m.get_flag("stdio");
+    let stdio = m.get_flag("stdio") && !stick;
     let framerate: f32 = match m.get_one::<String>("fps") {
         Some(fps_str) => fps_str.parse().unwrap_or(25.0_f32),
         None => 25.0_f32,
