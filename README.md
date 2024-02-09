@@ -9,8 +9,8 @@ Virtual Maze Solving Challenge
 
 ## stdio
 
-input: `{"steering":1,"acceleration":1}`
-output: `{"x":0.5092106,"y":0.5038942,"angle":0.4,"collision":false}`
+- input: `{"steering":1,"acceleration":1}`
+- output: `{"x":0.5092106,"y":0.5038942,"angle":0.4,"collision":false}`
 
 ### maze
 
