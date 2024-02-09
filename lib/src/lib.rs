@@ -228,17 +228,24 @@ pub fn run_simulation(config: &Config) {
 fn simulation_loop(local_state: &mut LocalState) {
     let mut running = true;
     let shared_state = local_state.shared_state.clone();
+    let config;
     let sleep_time;
     {
         let state = shared_state.lock().unwrap();
-        sleep_time = time::Duration::from_secs_f32(1.0 / state.config.framerate);
+        config = state.config.clone();
+        sleep_time = time::Duration::from_secs_f32(1.0 / config.framerate);
     }
     while running {
+        let mut simulation;
+        {
+            let state = shared_state.lock().unwrap();
+            simulation = state.simulation.clone();
+        }
+        input_step(local_state, &mut simulation);
+        simulation_step(local_state, &config, &mut simulation);
         {
             let mut state = shared_state.lock().unwrap();
-            let config = state.config.clone();
-            input_step(local_state, &mut state);
-            simulation_step(local_state, config, &mut state.simulation);
+            state.simulation = simulation.clone();
             if let Some(ctx) = &state.ctx {
                 ctx.input(|s| {
                     if s.viewport().close_requested() {
@@ -247,9 +254,9 @@ fn simulation_loop(local_state: &mut LocalState) {
                 });
                 ctx.request_repaint();
             }
-            if local_state.config.stdio {
-                write_output(&state.simulation);
-            }
+        }
+        if local_state.config.stdio {
+            write_output(&simulation);
         }
         if !local_state.config.stdio {
             thread::sleep(sleep_time);
@@ -257,20 +264,20 @@ fn simulation_loop(local_state: &mut LocalState) {
     }
 }
 
-fn input_step(local_state: &mut LocalState, state: &mut SharedState) {
+fn input_step(local_state: &mut LocalState, simulation: &mut SimulationState) {
     if let Some(gamepads) = &mut local_state.gamepads {
         gamepads.poll();
 
         for gamepad in gamepads.all() {
             let ls = gamepad.left_stick();
             let rs = gamepad.right_stick();
-            state.simulation.steering = (ls.0 + rs.0).min(1.0).max(-1.0);
-            state.simulation.acceleration = (ls.1 + rs.1).min(1.0).max(-1.0);
+            simulation.steering = (ls.0 + rs.0).min(1.0).max(-1.0);
+            simulation.acceleration = (ls.1 + rs.1).min(1.0).max(-1.0);
         }
     } else if local_state.config.stdio {
         if let Some(input) = get_input() {
-            state.simulation.steering = input.steering.min(1.0).max(-1.0);
-            state.simulation.acceleration = input.acceleration.min(1.0).max(-1.0);
+            simulation.steering = input.steering.min(1.0).max(-1.0);
+            simulation.acceleration = input.acceleration.min(1.0).max(-1.0);
         } else {
             let sleep_time = time::Duration::from_secs_f32(0.1);
             thread::sleep(sleep_time);
@@ -280,7 +287,7 @@ fn input_step(local_state: &mut LocalState, state: &mut SharedState) {
 
 fn simulation_step(
     local_state: &LocalState,
-    config: SimulationConfig,
+    config: &SimulationConfig,
     state: &mut SimulationState,
 ) {
     state.collision = false;
