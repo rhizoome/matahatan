@@ -52,6 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Arg::new("maze-seed")
                         .short('m')
                         .long("maze-seed")
+                        .value_name("MAZE-SEED")
                         .default_value("")
                         .help("Maze seed (any string)")
                         .num_args(1),
@@ -60,6 +61,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Arg::new("maze-kind")
                         .short('k')
                         .long("maze-kind")
+                        .value_name("MAZE-KIND")
                         .default_value("backtracking")
                         .help("Maze kind ('ellers', 'backtracking', 'growing_tree', 'prims')")
                         .num_args(1),

@@ -44,8 +44,8 @@ Options:
   -x, --no-gui                 Do not run GUI (unattended training) sets FPS to 0
   -o, --stdio                  Run the simulation in stdio-mode (disables FPS)
   -s, --stick                  Run the simulation with stick (gamepad/joystick)
-  -m, --maze-seed <maze-seed>  Maze seed (any string) [default: ]
-  -k, --maze-kind <maze-kind>  Maze kind ('ellers', 'backtracking',
+  -m, --maze-seed <MAZE-SEED>  Maze seed (any string) [default: ]
+  -k, --maze-kind <MAZE-KIND>  Maze kind ('ellers', 'backtracking',
                                'growing_tree', 'prims') [default: backtracking]
   -h, --help                   Print help
 ```
