@@ -4,6 +4,11 @@ Virtual Maze Solving Challenge
 
 [Micromouse](https://youtu.be/kMOssi5IcP0?si=2qSlp-7MrDTbPzCF&t=13)
 
+Move the mouse to the goal of the maze in the least frames. You can steer
+left/right, accelerate and break. If the mouse is fast, the turning radius is
+large so you have to break before corners. It is a about balance of speed and
+finding the best path. Write a program that solves the maze.
+
 ## State
 
 * stick-mode working
@@ -11,6 +16,7 @@ Virtual Maze Solving Challenge
 
 ## stdio
 
+- you get the maze as json
 - input: `{"steering":1,"acceleration":1}`
 - output: `{"x":0.5092106,"y":0.5038942,"angle":0.4,"collision":false}`
 
