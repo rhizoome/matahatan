@@ -2,6 +2,8 @@
 
 Virtual Maze Solving Challenge
 
+[Micromouse](https://youtu.be/kMOssi5IcP0?si=2qSlp-7MrDTbPzCF&t=13)
+
 ## State
 
 * stick-mode working
@@ -16,10 +18,10 @@ Virtual Maze Solving Challenge
 
 - n: north passage exists
 - o: east passage exists
-- s: source passage exists
+- s: south passage exists
 - w: west passage exists
 
-coordiates of output (x, y: f32) match index of the pssages (floor(x), floor(y)).
+coordiates of output (x, y: f32) match index of the passages (floor(x), floor(y)).
 
 ## Command-line
 
@@ -41,3 +43,7 @@ Options:
                                'growing_tree', 'prims') [default: backtracking]
   -h, --help                   Print help
 ```
+
+## Screenshot
+
+<img src="screenshot.png" alt="Matahatan" width="700">
