@@ -44,6 +44,8 @@ Options:
   -h, --help                   Print help
 ```
 
+Run from source: `cargo run --release -- simulate --stdio`
+
 ## Screenshot
 
 <img src="screenshot.png" alt="Matahatan" width="700">
